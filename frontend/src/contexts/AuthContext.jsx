@@ -55,6 +55,7 @@ export const AuthProvider = ({ children }) => {
 
       unsubscribeProfile = subscribeAdminUser(
         user.uid,
+        user.email || "",
         (profile) => {
           if (cancelled) return;
           clearProfileTimeout();

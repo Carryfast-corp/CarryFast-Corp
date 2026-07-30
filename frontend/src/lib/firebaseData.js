@@ -141,16 +141,36 @@ export const getAdminUser = async (userUid) => {
   }
 };
 
-export const subscribeAdminUser = (userUid, onData, onError) => {
+export const subscribeAdminUser = (userUid, userEmail, onData, onError) => {
   const db = ensureFirestore();
 
-  console.log("Subscribing to admin profile:", userUid);
+  console.log("Subscribing to admin profile:", userUid, userEmail);
 
-  return onSnapshot(
+  const unsubscribe = onSnapshot(
     doc(db, COLLECTIONS.users, userUid),
-    (snap) => {
+    async (snap) => {
       if (!snap.exists()) {
-        console.warn("Admin profile not found:", userUid);
+        console.warn("Admin profile not found by UID:", userUid);
+        if (userEmail) {
+          console.log("Attempting fallback admin lookup by email:", userEmail);
+          try {
+            const q = query(
+              collection(db, COLLECTIONS.users),
+              where("email", "==", userEmail.toLowerCase()),
+              limit(1)
+            );
+            const results = await getDocs(q);
+            if (!results.empty) {
+              onData(serialize(results.docs[0]));
+              return;
+            }
+          } catch (err) {
+            console.error("Admin email fallback query failed:", err);
+            if (onError) onError(err);
+            return;
+          }
+        }
+
         onData(null);
         return;
       }
@@ -164,6 +184,8 @@ export const subscribeAdminUser = (userUid, onData, onError) => {
       }
     }
   );
+
+  return unsubscribe;
 };
 
 export const subscribeAdminUsers = (onData, onError) => {
