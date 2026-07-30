@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { createLead } from "@/lib/firebaseData";
 
 const ENQUIRY_TYPES = ["Import", "Export", "Trade Compliance", "Documentation", "General"];
 
@@ -26,15 +26,17 @@ export default function ContactForm() {
         phone: form.phone,
         company: form.company,
         source: "contact",
+        enquiry_type: form.enquiry_type,
         message: `Designation: ${form.designation || "—"}\nEnquiry Type: ${form.enquiry_type}\n\n${form.message}`,
       };
-      await api.post("/leads", payload);
+      await createLead(payload);
       toast.success("Thank you. Our team will respond within one business day.");
       setForm({ name: "", company: "", designation: "", phone: "", email: "", enquiry_type: ENQUIRY_TYPES[0], message: "", source: "contact" });
       if (window.gtag) window.gtag("event", "generate_lead", { event_category: "contact" });
       if (window.fbq) window.fbq("track", "Lead");
-    } catch {
-      toast.error("Submission failed. Please call us directly.");
+    } catch (err) {
+      console.error("Lead submission failed:", err);
+      toast.error(err?.message || "Submission failed. Please call us directly.");
     } finally {
       setSubmitting(false);
     }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 import { ADMIN_URL } from "@/lib/firebase";
-import { api } from "@/lib/api";
+import { subscribeUnreadLeadCount } from "@/lib/firebaseData";
 
 const NAV = [
   { to: "", end: true, icon: LayoutDashboard, label: "Dashboard" },
@@ -20,13 +20,7 @@ export default function AdminLayout() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    let alive = true;
-    const tick = () => api.get("/admin/leads/unread-count")
-      .then((r) => { if (alive) setUnread(r.data.count || 0); })
-      .catch(() => {});
-    tick();
-    const id = setInterval(tick, 30000);
-    return () => { alive = false; clearInterval(id); };
+    return subscribeUnreadLeadCount(setUnread, () => {});
   }, []);
 
   return (

@@ -1,5 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -18,27 +20,42 @@ const hasFirebaseConfig = Boolean(
   firebaseConfig.appId,
 );
 
-export const firebaseApp = hasFirebaseConfig
-  ? getApps().length ? getApp() : initializeApp(firebaseConfig)
-  : null;
+export const firebaseApp = hasFirebaseConfig ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
+
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 
-// Debug helpers: expose a small flag to the browser for quick verification.
+// Always use the default Firestore database. Do not pass a second
+// argument here unless you deliberately created a named database
+// in the Firebase console and mean to target it.
+export const firestoreDb = firebaseApp ? getFirestore(firebaseApp) : null;
+
+export const firebaseStorage = firebaseApp ? getStorage(firebaseApp) : null;
+
 try {
   if (typeof window !== "undefined") {
     window.__CFC_FIREBASE_READY__ = {
-      hasFirebaseConfig: !!hasFirebaseConfig,
+      hasFirebaseConfig,
       firebaseApp: !!firebaseApp,
+      firestoreDb: !!firestoreDb,
+      firebaseStorage: !!firebaseStorage,
       projectId: firebaseConfig.projectId || null,
     };
   }
 } catch (e) {
-  // ignore in non-browser environments
+  // Browser-only diagnostic helper; ignore outside the browser.
 }
 
-// Persist auth across browser reloads (defaults to local, but make it explicit).
 if (firebaseAuth) {
   setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {});
 }
 
-export const ADMIN_URL = process.env.REACT_APP_ADMIN_URL || "/cfc-admin-control-room";
+export const ADMIN_URL =
+  process.env.REACT_APP_ADMIN_URL || "/cfc-admin-control-room";
+
+export default {
+  firebaseApp,
+  firebaseAuth,
+  firestoreDb,
+  firebaseStorage,
+  ADMIN_URL,
+};

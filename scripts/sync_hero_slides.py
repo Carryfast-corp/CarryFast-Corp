@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """
-Sync hero slides from backend default to MongoDB
+Sync hero slides into Firestore (admin).
 """
 import sys
-import asyncio
-from pathlib import Path
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
-from dotenv import load_dotenv
+from pathlib import Path
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-# Load env from backend
-backend_dir = Path(__file__).parent.parent / "backend"
-load_dotenv(backend_dir / ".env")
+# Use service account from secrets/firebase-service-account.json
+SA_PATH = Path(__file__).parent.parent / "secrets" / "firebase-service-account.json"
 
-mongo_url = os.environ.get('MONGO_URL')
-db_name = os.environ.get('DB_NAME')
-
-if not mongo_url or not db_name:
-    print("❌ MONGO_URL or DB_NAME not set in backend/.env")
+if not SA_PATH.exists():
+    print("❌ Firebase service account not found at secrets/firebase-service-account.json")
     sys.exit(1)
+
+cred = credentials.Certificate(str(SA_PATH))
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 # Hero slides from backend/server.py DEFAULT_SITE_CONFIG
 HERO_SLIDES = [
@@ -28,32 +27,17 @@ HERO_SLIDES = [
     {"image": "/logos/logistic4.jpg", "overline": "CONCOR Best Customs Broker · Since 1997", "title_lines": ["Recognised by CONCOR", "every year"], "title_span": "since 1997.", "subtitle": "An unbroken record of recognition across nearly three decades — awarded annually by Container Corporation of India for consistent operational performance."},
 ]
 
-async def sync_hero_slides():
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-    
+def sync_hero_slides():
     try:
-        # Update site config with hero slides
-        result = await db.site_config.update_one(
-            {"_id": "singleton"},
-            {"$set": {"hero_slides": HERO_SLIDES}},
-            upsert=True
-        )
-        
-        if result.matched_count > 0 or result.upserted_id:
-            print("✅ Hero slides synced successfully!")
-            print(f"   - Updated/inserted: 1 document")
-            print(f"   - Total hero slides: {len(HERO_SLIDES)}")
-            return True
-        else:
-            print("❌ Failed to sync hero slides")
-            return False
+        doc_ref = db.collection("site_config").document("singleton")
+        doc_ref.set({"hero_slides": HERO_SLIDES}, merge=True)
+        print("✅ Hero slides written to Firestore (site_config/singleton)")
+        print(f"   - Total hero slides: {len(HERO_SLIDES)}")
+        return True
     except Exception as e:
-        print(f"❌ Error syncing hero slides: {e}")
+        print(f"❌ Error writing hero slides to Firestore: {e}")
         return False
-    finally:
-        client.close()
 
 if __name__ == "__main__":
-    success = asyncio.run(sync_hero_slides())
+    success = sync_hero_slides()
     sys.exit(0 if success else 1)

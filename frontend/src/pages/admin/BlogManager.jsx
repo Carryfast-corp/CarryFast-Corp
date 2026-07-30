@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Edit, Trash2, Eye } from "lucide-react";
-import { api } from "@/lib/api";
+import { deleteBlogPost, subscribeAdminPosts } from "@/lib/firebaseData";
 import { toast } from "sonner";
 import { ADMIN_URL } from "@/lib/firebase";
 
 export default function BlogManager() {
   const [posts, setPosts] = useState([]);
-  const load = () => api.get("/admin/blog").then((r) => setPosts(r.data));
-  useEffect(() => { load(); }, []);
+  useEffect(() => subscribeAdminPosts(setPosts, () => {}), []);
 
   const del = async (id) => {
     if (!window.confirm("Delete this post?")) return;
-    await api.delete(`/admin/blog/${id}`);
+    await deleteBlogPost(id);
     toast.success("Post deleted");
-    load();
   };
 
   return (
@@ -34,6 +32,7 @@ export default function BlogManager() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
               <th className="px-5 py-3">Title</th>
+              <th className="px-5 py-3">Featured</th>
               <th className="px-5 py-3">Status</th>
               <th className="px-5 py-3">Views</th>
               <th className="px-5 py-3">Updated</th>
@@ -46,6 +45,7 @@ export default function BlogManager() {
             ) : posts.map((p) => (
               <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50" data-testid={`admin-blog-row-${p.id}`}>
                 <td className="px-5 py-4 font-medium text-navy-900">{p.title}<div className="text-xs text-slate-400 font-mono mt-0.5">/blog/{p.slug}</div></td>
+                <td className="px-5 py-4 text-slate-600">{p.featured ? "⭐" : "—"}</td>
                 <td className="px-5 py-4">
                   <span className={`inline-block px-2.5 py-0.5 text-xs uppercase tracking-wider ${p.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{p.status}</span>
                 </td>

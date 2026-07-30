@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { saveSiteConfig, uploadImage } from "@/lib/firebaseData";
 import { toast } from "sonner";
 import { useSiteConfigCtx } from "@/contexts/SiteConfigContext";
 import { DEFAULT_POLICIES, POLICY_TITLES } from "@/lib/defaultPolicies";
 import { resolveAssetUrl } from "@/lib/assets";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TABS = [
   { key: "company", label: "Company" },
@@ -42,6 +43,7 @@ const normalizePageHeroes = (pageHeroes = {}) => {
 
 export default function SiteConfigEditor() {
   const ctx = useSiteConfigCtx();
+  const { user } = useAuth();
   const [tab, setTab] = useState("company");
   const [cfg, setCfg] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -49,12 +51,12 @@ export default function SiteConfigEditor() {
   const [policyKey, setPolicyKey] = useState("privacy-policy");
 
   useEffect(() => {
-    api.get("/admin/site-config").then((r) => setCfg({
-      ...r.data,
-      page_heroes: normalizePageHeroes({ ...DEFAULT_PAGE_HEROES, ...(r.data.page_heroes || {}) }),
-      policies: { ...DEFAULT_POLICIES, ...(r.data.policies || {}) },
-    }));
-  }, []);
+    setCfg({
+      ...(ctx?.config || {}),
+      page_heroes: normalizePageHeroes({ ...DEFAULT_PAGE_HEROES, ...(ctx?.config?.page_heroes || {}) }),
+      policies: { ...DEFAULT_POLICIES, ...(ctx?.config?.policies || {}) },
+    });
+  }, [ctx?.config]);
 
   const setField = (section, key, value) => setCfg((c) => ({ ...c, [section]: { ...(c[section] || {}), [key]: value } }));
   const setSection = (section, value) => setCfg((c) => ({ ...c, [section]: value }));
@@ -70,12 +72,10 @@ export default function SiteConfigEditor() {
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const { data } = await api.post("/admin/upload", fd);
-      setField("company", "logo_url", data.url);
+      const url = await uploadImage(file);
+      setField("company", "logo_url", url);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Logo upload failed.");
+      toast.error(e?.message || "Logo upload failed.");
     } finally {
       setUploading(false);
     }
@@ -85,13 +85,11 @@ export default function SiteConfigEditor() {
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const { data } = await api.post("/admin/upload", fd);
-      if (typeof onUrl === "function") onUrl(data.url);
-      return data.url;
+      const url = await uploadImage(file);
+      if (typeof onUrl === "function") onUrl(url);
+      return url;
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Image upload failed.");
+      toast.error(e?.message || "Image upload failed.");
     } finally {
       setUploading(false);
     }
@@ -102,13 +100,11 @@ export default function SiteConfigEditor() {
   const save = async () => {
     setBusy(true);
     try {
-      // strip internal mongo fields
       const { _id, updated_at, updated_by, ...payload } = cfg;
-      await api.put("/admin/site-config", payload);
-      toast.success("Saved. Refreshing live site config…");
-      await ctx?.refresh?.();
+      await saveSiteConfig(payload, user?.email);
+      toast.success("Saved. Live site config updated.");
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e?.message || "Save failed.");
+      toast.error(e?.message || "Save failed.");
     } finally {
       setBusy(false);
     }
@@ -147,7 +143,7 @@ export default function SiteConfigEditor() {
           <Field label="Tagline"><input className={input} value={cfg.company?.tagline || ""} onChange={(e) => setField("company", "tagline", e.target.value)} /></Field>
           <Field label="Logo URL / Upload">
             <div className="space-y-3">
-              <input className={input} value={cfg.company?.logo_url || ""} onChange={(e) => setField("company", "logo_url", e.target.value)} placeholder="https://... or /uploads/logo.png" />
+              <input className={input} value={cfg.company?.logo_url || ""} onChange={(e) => setField("company", "logo_url", e.target.value)} placeholder="https://... or Firebase Storage URL" />
               <label className="inline-flex items-center justify-center gap-2 rounded-sm border border-slate-300 px-4 py-2 text-sm text-navy-900 hover:border-gold-500 hover:bg-slate-50 cursor-pointer transition-colors">
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e.target.files?.[0])} disabled={uploading} />
                 {uploading ? "Uploading logo…" : "Upload logo file"}

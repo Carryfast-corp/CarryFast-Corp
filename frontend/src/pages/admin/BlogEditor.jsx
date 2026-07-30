@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Save, Upload, ImagePlus, Trash2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { ArrowLeft, Save, ImagePlus, Trash2 } from "lucide-react";
+import { createBlogPost, getBlogPost, updateBlogPost, uploadImage } from "@/lib/firebaseData";
 import { toast } from "sonner";
 import { ADMIN_URL } from "@/lib/firebase";
 import { resolveAssetUrl } from "@/lib/assets";
+import { useAuth } from "@/contexts/AuthContext";
 
 const empty = {
   title: "", excerpt: "", content: "", cover_image: "", og_image: "",
-  custom_slug: "", tags: [], meta_title: "", meta_description: "",
+  custom_slug: "", tags: [], featured: false, meta_title: "", meta_description: "",
   meta_keywords: "", status: "draft",
 };
 
@@ -16,13 +17,16 @@ export default function BlogEditor() {
   const { id } = useParams();
   const isNew = id === "new";
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(null); // 'cover' | 'og'
 
   useEffect(() => {
     if (!isNew) {
-      api.get(`/admin/blog/${id}`).then((r) => setForm({ ...empty, ...r.data, tags: r.data.tags || [] }));
+      getBlogPost(id).then((data) => {
+        if (data) setForm({ ...empty, ...data, tags: data.tags || [] });
+      });
     }
   }, [id, isNew]);
 
@@ -32,13 +36,11 @@ export default function BlogEditor() {
     if (!file) return;
     setUploading(field);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const { data } = await api.post("/admin/upload", fd);
-      set(field === "cover" ? "cover_image" : "og_image", data.url);
+      const url = await uploadImage(file);
+      set(field === "cover" ? "cover_image" : "og_image", url);
       toast.success("Image uploaded.");
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Upload failed.");
+      toast.error(e?.message || "Upload failed.");
     } finally {
       setUploading(null);
     }
@@ -57,15 +59,16 @@ export default function BlogEditor() {
     };
     try {
       if (isNew) {
-        await api.post("/admin/blog", payload);
+        await createBlogPost(payload, user?.name || user?.email || "Admin");
         toast.success(`Post ${status === "published" ? "published" : "saved as draft"}.`);
       } else {
-        await api.put(`/admin/blog/${id}`, payload);
+        await updateBlogPost(id, payload);
         toast.success("Post updated.");
       }
       navigate(`${ADMIN_URL}/blog`);
-    } catch {
-      toast.error("Save failed.");
+    } catch (err) {
+      console.error("Blog save failed:", err);
+      toast.error(err?.message || "Save failed.");
     } finally {
       setBusy(false);
     }
@@ -112,6 +115,17 @@ export default function BlogEditor() {
             <div>
               <label className="text-overline block mb-2">Tags (comma-separated)</label>
               <input className={input} value={Array.isArray(form.tags) ? form.tags.join(", ") : form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="cbic, dgft, customs" />
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                id="featured"
+                type="checkbox"
+                checked={!!form.featured}
+                onChange={(e) => set("featured", e.target.checked)}
+                className="h-4 w-4 text-gold-500 border-slate-300 rounded focus:ring-gold-500"
+                data-testid="editor-featured"
+              />
+              <label htmlFor="featured" className="text-sm text-slate-700">Mark as featured article</label>
             </div>
           </SideBlock>
 

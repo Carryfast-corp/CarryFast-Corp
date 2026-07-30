@@ -21,8 +21,7 @@ describe("production smoke checks", () => {
     expect(app).toContain("ADMIN_URL");
   });
 
-  test("API client uses relative /api fallback for same-origin production deploys", () => {
-    expect(read("src/lib/api.js")).toContain('"/api"');
+  test("Firebase data layer is used instead of a backend API client", () => {
+    expect(read("src/lib/firebaseData.js")).toContain("subscribeSiteConfig");
   });
 });
-

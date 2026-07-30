@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { subscribeSiteConfig } from "@/lib/firebaseData";
 import { DEFAULT_POLICIES } from "@/lib/defaultPolicies";
 
 const SiteConfigContext = createContext(null);
@@ -33,7 +33,7 @@ const normalizeHeroSlides = (slides = []) => slides.map((slide) => {
   };
 });
 
-// Fallback used only while the first fetch is in-flight; matches backend DEFAULT.
+// Fallback used only while the first Firestore snapshot is in-flight.
 const FALLBACK = {
   company: {
     name: "Carry Fast Corporation",
@@ -124,9 +124,8 @@ export const SiteConfigProvider = ({ children }) => {
   const [config, setConfig] = useState(FALLBACK);
   const [loaded, setLoaded] = useState(false);
 
-  const refresh = useCallback(async () => {
-    try {
-      const { data } = await api.get("/site-config");
+  const applyConfig = useCallback((data) => {
+    if (data) {
       setConfig({
         ...FALLBACK,
         ...data,
@@ -137,30 +136,22 @@ export const SiteConfigProvider = ({ children }) => {
         testimonials: { ...FALLBACK.testimonials, ...(data.testimonials || {}) },
         policies: { ...FALLBACK.policies, ...(data.policies || {}) },
       });
-    } catch {
-      // keep fallback
-    } finally {
-      setLoaded(true);
     }
+    setLoaded(true);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
-    refresh();
-
-    const id = window.setInterval(refresh, 30000);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") refresh();
-    };
-
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [refresh]);
+    try {
+      return subscribeSiteConfig(applyConfig, () => setLoaded(true));
+    } catch {
+      setLoaded(true);
+      return undefined;
+    }
+  }, [applyConfig]);
 
   return (
     <SiteConfigContext.Provider value={{ config, loaded, refresh }}>

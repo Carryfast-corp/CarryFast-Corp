@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true;
+    }
+
+    function publicViewIncrement() {
+      return resource.data.status == "published"
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["views"])
+        && request.resource.data.views == resource.data.views + 1;
+    }
+
+    // site_config: public read (used for public website), admin-only writes
+    match /site_config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // blog_posts: published posts public; admin-only create/update/delete
+    match /blog_posts/{postId} {
+      allow read: if resource.data.status == "published" || isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAdmin() || publicViewIncrement();
+    }
+
+    // leads: public create (contact form); admin-only read/update/delete
+    match /leads/{leadId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth.uid == userId;
+      allow update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

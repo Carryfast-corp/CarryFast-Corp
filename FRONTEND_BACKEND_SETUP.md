@@ -1,77 +1,38 @@
-# Frontend Configuration for Render Backend
+# Firebase Frontend Setup
 
-## Update Your Frontend `.env.local` (Development)
+This project now runs as a frontend-only React app backed by Firebase.
 
-```env
-REACT_APP_API_URL=http://localhost:8001/api
-```
+## Local Development
 
-## Update Your Frontend `.env.production` (Vercel)
-
-```env
-REACT_APP_API_URL=https://cfc-api.onrender.com/api
-```
-
-## Update Your API Configuration
-
-If you have `frontend/src/lib/api.js`, ensure it uses the environment variable:
-
-```javascript
-export const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8001/api'
-});
-```
-
-## Deployment Timeline
-
-### Local Testing (Your Machine)
 ```bash
-# Terminal 1: Backend
-cd backend && python server.py
-# Backend runs on http://localhost:8001
-
-# Terminal 2: Frontend  
-cd frontend && npm start
-# Frontend runs on http://localhost:3000
+cd frontend
+npm start
 ```
 
-✅ Uploads work locally → stored in `backend/uploads/`
+Configure `frontend/.env` or `.env.local` with:
 
----
+```env
+REACT_APP_FIREBASE_API_KEY=your-firebase-web-api-key
+REACT_APP_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=your-firebase-project-id
+REACT_APP_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+REACT_APP_FIREBASE_APP_ID=your-app-id
+REACT_APP_FIREBASE_MEASUREMENT_ID=
+REACT_APP_ADMIN_URL=/cfc-admin-control-room
+```
 
-### Production (Vercel + Render)
-1. Deploy backend to Render first
-2. Get your Render URL: `https://cfc-api.onrender.com`
-3. Update frontend `.env.production` with that URL
-4. Push to GitHub
-5. Vercel auto-deploys frontend
-6. Frontend calls Render API
-7. Uploads stored in Render persistent disk
+## Firebase Services
 
-✅ Uploads work in production → stored in `/var/app/uploads/`
+- Firebase Auth handles admin sign-in.
+- Firestore stores admin profiles, site config, blog posts, and leads.
+- Firebase Storage stores admin-uploaded images.
+- Firestore realtime listeners update public site content and admin views live.
 
----
+## Admin Users
 
-## Testing Upload Flow in Production
+Create the login in Firebase Console first, then add a matching Firestore admin profile from the admin panel using that user's Firebase UID.
 
-1. Go to `https://your-site.vercel.app/admin`
-2. Login with admin credentials
-3. Go to "Hero Slides" tab
-4. Click "Upload image file"
-5. Select an image
-6. Should see: `https://cfc-api.onrender.com/uploads/abc123.jpg`
-7. Image displays on hero section immediately
+## Deploy
 
-## Troubleshooting Production Issues
-
-**Issue:** "Failed to upload - 401 Unauthorized"
-- Solution: Make sure you're logged in and token is valid
-
-**Issue:** "Image URL returned but not displaying"
-- Solution: Check CORS_ORIGINS includes your Vercel domain
-
-**Issue:** "Render backend keeps crashing"
-- Solution: Check Render logs, likely missing env var or DB connection
-
-**Issue:** "Upload works but image disappears after restart"
-- Solution: Make sure persistent disk is configured on Render
+Deploy the `frontend` app to Vercel, Firebase Hosting, Netlify, or any static host. No backend service is required.

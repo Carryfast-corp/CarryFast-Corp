@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Trash2, Search, Download, CircleDot } from "lucide-react";
-import { api, API } from "@/lib/api";
+import { deleteLead, leadsToCsv, markAllLeadsRead, subscribeLeads, updateLead } from "@/lib/firebaseData";
 import { toast } from "sonner";
-import { firebaseAuth } from "@/lib/firebase";
 
 const STATUSES = ["new", "contacted", "qualified", "closed"];
 const ENQUIRY_TYPES = ["", "Import", "Export", "Trade Compliance", "Documentation", "General"];
@@ -14,56 +13,30 @@ export default function Leads() {
   const [enq, setEnq] = useState("");
   const [selected, setSelected] = useState(null);
 
-  const load = useCallback(async () => {
-    const params = {};
-    if (q) params.q = q;
-    if (status) params.status = status;
-    if (enq) params.enquiry_type = enq;
-    const { data } = await api.get("/admin/leads", { params });
-    setLeads(data);
+  useEffect(() => {
+    return subscribeLeads({ q, status, enquiry_type: enq }, setLeads, () => {});
   }, [q, status, enq]);
 
   useEffect(() => {
-    const t = setTimeout(load, 350);
-    return () => clearTimeout(t);
-  }, [load]);
-
-  useEffect(() => {
-    const id = window.setInterval(load, 30000);
-    return () => window.clearInterval(id);
-  }, [load]);
-
-  useEffect(() => {
-    api.post("/admin/leads/mark-all-read").catch(() => {});
-  }, []);
+    if (leads.length) markAllLeadsRead(leads).catch(() => {});
+  }, [leads]);
 
   const updateStatus = async (id, s) => {
-    await api.put(`/admin/leads/${id}`, { status: s });
-    load();
+    await updateLead(id, { status: s });
   };
   const del = async (id) => {
     if (!window.confirm("Delete this lead?")) return;
-    await api.delete(`/admin/leads/${id}`);
+    await deleteLead(id);
     toast.success("Deleted");
     if (selected?.id === id) setSelected(null);
-    load();
   };
 
   const downloadCsv = async () => {
-    const token = await firebaseAuth?.currentUser?.getIdToken();
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (status) params.set("status", status);
-    if (enq) params.set("enquiry_type", enq);
-    const url = `${API}/admin/leads/export.csv?${params.toString()}`;
     try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!resp.ok) throw new Error("Export failed");
-      const blob = await resp.blob();
+      const blob = new Blob([leadsToCsv(leads)], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      const filename = (resp.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || `leads-${Date.now()}.csv`;
-      a.download = filename;
+      a.download = `carry-fast-leads-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}.csv`;
       a.click();
       URL.revokeObjectURL(a.href);
       toast.success("CSV downloaded.");

@@ -1,21 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, FileText, Eye, AlertCircle, ArrowRight, Users, TrendingUp } from "lucide-react";
-import { api } from "@/lib/api";
+import { buildAnalyticsData, subscribeAdminPosts, subscribeLeads } from "@/lib/firebaseData";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
 import { ADMIN_URL } from "@/lib/firebase";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    let alive = true;
-    const load = () => api.get("/admin/analytics")
-      .then((r) => { if (alive) setData(r.data); })
-      .catch(() => {});
-
-    load();
-    const id = window.setInterval(load, 30000);
-    return () => { alive = false; window.clearInterval(id); };
+    let latestLeads = [];
+    let latestPosts = [];
+    const publish = () => setData(buildAnalyticsData(latestLeads, latestPosts));
+    const unsubLeads = subscribeLeads({}, (leads) => {
+      latestLeads = leads;
+      publish();
+    }, () => {});
+    const unsubPosts = subscribeAdminPosts((posts) => {
+      latestPosts = posts;
+      publish();
+    }, () => {});
+    return () => {
+      unsubLeads?.();
+      unsubPosts?.();
+    };
   }, []);
   if (!data) return <div className="p-10 text-slate-500">Loading…</div>;
   const k = data.kpis;
@@ -67,7 +74,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="font-display font-bold text-lg text-navy-900">Google Analytics</h2>
-            <div className="text-sm text-slate-500">GA4 metrics for the last 7 days</div>
+            <div className="text-sm text-slate-500">GA4 metrics require a server-side reporting bridge.</div>
           </div>
           {!data.ga4 || !data.ga4.metrics || Object.keys(data.ga4.metrics).length === 0 ? (
             <div className="text-xs text-slate-500">GA4 not configured or unavailable</div>
@@ -105,7 +112,7 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="text-sm text-slate-500">Google Analytics metrics are not available. Configure `GA4_PROPERTY_ID` and GA service account access in backend.</div>
+          <div className="text-sm text-slate-500">Google Analytics metrics are not available in frontend-only mode.</div>
         )}
       </div>
 

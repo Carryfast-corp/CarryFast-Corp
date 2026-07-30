@@ -1,5 +1,3 @@
-import { BACKEND_ORIGIN } from "@/lib/api";
-
 const ABSOLUTE_URL_RE = /^(?:https?:)?\/\//i;
 const LOGO_VARIANT_RE = /-(?:lg|md|sm)$/i;
 
@@ -16,13 +14,12 @@ export function resolveAssetUrl(url) {
   }
 
   if (value.startsWith("/uploads/")) {
-    return BACKEND_ORIGIN ? `${BACKEND_ORIGIN}${value}` : value;
+    return value;
   }
 
   const uploadsIndex = value.indexOf("/uploads/");
   if (uploadsIndex >= 0) {
-    const uploadPath = value.slice(uploadsIndex);
-    return BACKEND_ORIGIN ? `${BACKEND_ORIGIN}${uploadPath}` : uploadPath;
+    return value.slice(uploadsIndex);
   }
 
   return value;

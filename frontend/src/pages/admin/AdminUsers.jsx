@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
-import { api } from "@/lib/api";
+import { deleteAdminProfile, saveAdminProfile, subscribeAdminUsers } from "@/lib/firebaseData";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,36 +8,33 @@ export default function AdminUsers() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "", name: "" });
+  const [form, setForm] = useState({ uid: "", email: "", name: "" });
   const [busy, setBusy] = useState(false);
 
-  const load = () => api.get("/admin/users").then((r) => setUsers(r.data));
-  useEffect(() => { load(); }, []);
+  useEffect(() => subscribeAdminUsers(setUsers, () => {}), []);
 
   const add = async (e) => {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/admin/users", form);
-      toast.success(`Admin ${form.email} created.`);
-      setForm({ email: "", password: "", name: "" });
+      await saveAdminProfile(form, me?.email);
+      toast.success(`Admin access granted to ${form.email}.`);
+      setForm({ uid: "", email: "", name: "" });
       setShowAdd(false);
-      load();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Could not create user.");
+      toast.error(err?.message || "Could not grant admin access.");
     } finally {
       setBusy(false);
     }
   };
 
   const del = async (uid, email) => {
-    if (!window.confirm(`Revoke admin access for ${email}? This will delete their Firebase login too.`)) return;
+    if (!window.confirm(`Revoke admin access for ${email}? Their Firebase login will remain in Firebase Auth.`)) return;
     try {
-      await api.delete(`/admin/users/${uid}`);
-      toast.success("Admin user deleted.");
-      load();
+      await deleteAdminProfile(uid);
+      toast.success("Admin access revoked.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Delete failed.");
+      toast.error(err?.message || "Delete failed.");
     }
   };
 
@@ -49,7 +46,7 @@ export default function AdminUsers() {
         <div>
           <div className="text-overline">Access Control</div>
           <h1 className="font-display font-extrabold text-3xl text-navy-900 mt-1">Admin Users</h1>
-          <p className="mt-2 text-sm text-slate-600">Manage who can access the admin panel. Authentication runs on Firebase; roles are stored in MongoDB.</p>
+          <p className="mt-2 text-sm text-slate-600">Manage admin access for existing Firebase Auth users. Roles update live from Firestore.</p>
         </div>
         <button onClick={() => setShowAdd(true)} data-testid="add-admin-btn" className="inline-flex items-center gap-2 bg-gold-500 text-white px-5 py-3 text-sm font-semibold hover:bg-gold-600">
           <Plus size={16} /> Add admin
@@ -95,13 +92,13 @@ export default function AdminUsers() {
               <button onClick={() => setShowAdd(false)} className="text-slate-400 hover:text-navy-900"><X size={20} /></button>
             </div>
             <form onSubmit={add} className="space-y-4">
+              <div><label className="text-overline block mb-1.5">Firebase UID</label><input required className={input} value={form.uid} onChange={(e) => setForm({ ...form, uid: e.target.value })} placeholder="Firebase Auth user UID" data-testid="new-admin-uid" /></div>
               <div><label className="text-overline block mb-1.5">Name</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Jane Doe" /></div>
               <div><label className="text-overline block mb-1.5">Email</label><input type="email" required className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="jane@carryfastcorp.com" data-testid="new-admin-email" /></div>
-              <div><label className="text-overline block mb-1.5">Initial password</label><input type="password" required minLength={6} className={input} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="min 6 characters" data-testid="new-admin-password" /></div>
-              <div className="text-[11px] text-slate-500">The user will sign in with these credentials and can change their password through Firebase.</div>
+              <div className="text-[11px] text-slate-500">Create the login in Firebase Console first, then paste that user's UID here to grant admin access.</div>
               <div className="flex gap-2 justify-end pt-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2.5 text-sm font-semibold border border-slate-300 hover:bg-slate-100">Cancel</button>
-                <button type="submit" disabled={busy} data-testid="new-admin-submit" className="px-5 py-2.5 text-sm font-bold bg-gold-500 text-white hover:bg-gold-600 disabled:opacity-50">{busy ? "Creating…" : "Create admin"}</button>
+                <button type="submit" disabled={busy} data-testid="new-admin-submit" className="px-5 py-2.5 text-sm font-bold bg-gold-500 text-white hover:bg-gold-600 disabled:opacity-50">{busy ? "Saving…" : "Grant access"}</button>
               </div>
             </form>
           </div>
