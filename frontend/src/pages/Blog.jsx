@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, FileText, BookOpen, TrendingUp } from "lucide-react";
-import { api } from "@/lib/api";
+import { subscribePublishedPosts } from "@/lib/firebaseData";
 import SEO from "@/components/SEO";
 import PageHero from "@/components/PageHero";
 import { resolveAssetUrl } from "@/lib/assets";
@@ -50,10 +50,22 @@ export default function Blog() {
   const heroImage = cfg.page_heroes?.blog?.image || "/logos/blogs.jpg";
 
   useEffect(() => {
-    api.get("/blog").then((r) => setPosts(r.data)).catch(() => {}).finally(() => setLoading(false));
+    try {
+      return subscribePublishedPosts(
+        (data) => {
+          setPosts(data);
+          setLoading(false);
+        },
+        () => setLoading(false),
+      );
+    } catch {
+      setLoading(false);
+      return undefined;
+    }
   }, []);
 
-  const featured = posts[0];
+  const featured = posts.find((post) => post.featured) || posts[0];
+  const recentPosts = featured ? posts.filter((post) => post.id !== featured.id) : posts;
 
   return (
     <>
@@ -104,11 +116,11 @@ export default function Blog() {
           </div>
           {loading ? (
             <div className="text-slate-500 py-12">Loading…</div>
-          ) : posts.length <= 1 ? (
+          ) : recentPosts.length === 0 ? (
             <div className="text-slate-500 py-12 border border-dashed border-slate-300 text-center">More articles coming soon. Check back regularly.</div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {posts.slice(1).map((p) => (
+              {recentPosts.map((p) => (
                 <Link key={p.id} to={`/blog/${p.slug}`} data-testid={`blog-card-${p.slug}`} className="group block bg-white border border-slate-200 hover:border-gold-500 hover:shadow-lg transition-all">
                   {p.cover_image && (
                     <div className="h-52 overflow-hidden bg-slate-100">
