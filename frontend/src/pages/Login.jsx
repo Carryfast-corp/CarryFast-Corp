@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { ADMIN_URL } from "@/lib/firebase";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, authError } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +42,11 @@ export default function Login() {
           <div className="text-overline mb-4">Admin Portal · Secure Access</div>
           <h1 className="font-display font-extrabold text-3xl text-navy-900">Sign in</h1>
           <p className="mt-2 text-sm text-slate-600">Authenticated via Firebase. Admin role required.</p>
+          {authError ? (
+            <div className="mt-4 rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {authError}
+            </div>
+          ) : null}
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4" data-testid="admin-login-form">
             <input className={input} type="email" placeholder="admin@carryfastcorp.com" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email" required autoComplete="username" />

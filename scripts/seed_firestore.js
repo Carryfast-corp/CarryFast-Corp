@@ -3,6 +3,7 @@
 const { resolve } = require("path");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth, getUserByEmail, createUser } = require("firebase-admin/auth");
 
 const serviceAccountPath =
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
@@ -126,12 +127,39 @@ const nowIso = () => new Date().toISOString();
     // Admin User
     // ---------------------------------------------------------------------
 
-    const adminUserRef = db.doc("users/admin");
+    const adminEmail = "admin@carryfastcorp.com";
+    let adminUid;
+
+    try {
+      const userRecord = await getUserByEmail(adminEmail);
+      adminUid = userRecord.uid;
+      console.log(`Found Firebase Auth user for ${adminEmail}: ${adminUid}`);
+    } catch (err) {
+      if (err.code === "auth/user-not-found") {
+        const password = process.env.ADMIN_USER_PASSWORD || "ChangeMe123!";
+        const createdUser = await createUser({
+          email: adminEmail,
+          password,
+          disabled: false,
+        });
+        adminUid = createdUser.uid;
+        console.log(`Created Firebase Auth user ${adminEmail}: ${adminUid}`);
+        if (!process.env.ADMIN_USER_PASSWORD) {
+          console.warn(
+            "WARNING: Admin user was created with default password 'ChangeMe123!'. Please update this password immediately in Firebase Auth."
+          );
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    const adminUserRef = db.doc(`users/${adminUid}`);
 
     await adminUserRef.set(
       {
-        uid: "admin",
-        email: "admin@carryfastcorp.com",
+        uid: adminUid,
+        email: adminEmail,
         name: "Admin",
         role: "admin",
         disabled: false,
@@ -141,7 +169,7 @@ const nowIso = () => new Date().toISOString();
       { merge: true }
     );
 
-    console.log("✅ Seeded users/admin");
+    console.log(`✅ Seeded users/${adminUid}`);
 
     console.log("\n🎉 Firestore seeding completed successfully.");
     process.exit(0);
